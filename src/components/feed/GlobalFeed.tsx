@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { ProductCard } from './ProductCard'
 import { Search, Filter, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
+
+interface Product {
+  id: number
+  session_id: number
+  seller_id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  status: 'available' | 'reserved' | 'sold'
+  created_at: string
+  updated_at: string
+}
 
 interface GlobalFeedProps {
   onJoinSession: (sessionId: number) => void
@@ -18,7 +32,7 @@ export function GlobalFeed({ onJoinSession }: GlobalFeedProps) {
 
   useEffect(() => {
     loadProducts()
-    setupRealTimeSubscription()
+    // Real-time subscriptions will be handled later with WebSockets
   }, [])
 
   async function loadProducts() {
@@ -26,28 +40,23 @@ export function GlobalFeed({ onJoinSession }: GlobalFeedProps) {
       setLoading(true)
       
       // Get products from active sessions only
-      const { data: products, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          live_sessions!inner(status)
-        `)
-        .eq('live_sessions.status', 'active')
-        .order('created_at', { ascending: false })
+      const productsResponse = await fetch(`${API_BASE_URL}/products`)
+      if (!productsResponse.ok) throw new Error('Failed to fetch products')
+      const productsData: Product[] = await productsResponse.json()
 
-      if (error) throw error
+      // Filter products by active sessions (this logic might need to be moved to backend)
+      // For now, we'll assume backend returns only products from active sessions or handle filtering here
+      const activeProducts = productsData // Placeholder for now
 
       // Get seller names
-      if (products && products.length > 0) {
-        const sellerIds = [...new Set(products.map(p => p.seller_id))]
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', sellerIds)
+      if (activeProducts && activeProducts.length > 0) {
+        const sellerIds = [...new Set(activeProducts.map(p => p.seller_id))]
+        const profilesPromises = sellerIds.map(id => fetch(`${API_BASE_URL}/auth/profile/${id}`).then(res => res.json()))
+        const profiles = await Promise.all(profilesPromises)
 
-        const productsWithSellers = products.map(product => ({
+        const productsWithSellers = activeProducts.map(product => ({
           ...product,
-          seller_name: profiles?.find(p => p.user_id === product.seller_id)?.full_name || 'Unknown Seller'
+          seller_name: profiles.find(p => p.user_id === product.seller_id)?.full_name || 'Unknown Seller'
         }))
 
         setProducts(productsWithSellers)
@@ -62,46 +71,10 @@ export function GlobalFeed({ onJoinSession }: GlobalFeedProps) {
     }
   }
 
-  function setupRealTimeSubscription() {
-    // Listen for new products
-    const productSubscription = supabase
-      .channel('products_feed')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products'
-        },
-        async (payload) => {
-          console.log('Product change:', payload)
-          await loadProducts() // Reload to get updated data
-        }
-      )
-      .subscribe()
-
-    // Listen for session status changes
-    const sessionSubscription = supabase
-      .channel('sessions_feed')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'live_sessions'
-        },
-        async (payload) => {
-          console.log('Session change:', payload)
-          await loadProducts() // Reload to filter out ended sessions
-        }
-      )
-      .subscribe()
-
-    return () => {
-      productSubscription.unsubscribe()
-      sessionSubscription.unsubscribe()
-    }
-  }
+  // function setupRealTimeSubscription() {
+  //   // This will be implemented later with WebSockets
+  //   return () => {}
+  // }
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,29 +102,43 @@ export function GlobalFeed({ onJoinSession }: GlobalFeedProps) {
       if (!product) return
 
       // Create reservation
-      const { error: reservationError } = await supabase
-        .from('reservations')
-        .insert({
+      const reservationResponse = await fetch(`${API_BASE_URL}/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           product_id: productId,
           buyer_id: profile.user_id,
           seller_id: product.seller_id,
           status: 'active'
-        })
+        }),
+      })
 
-      if (reservationError) throw reservationError
+      if (!reservationResponse.ok) {
+        const errorData = await reservationResponse.json()
+        throw new Error(errorData.error || 'Failed to create reservation')
+      }
 
       // Update product status
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({ status: 'reserved' })
-        .eq('id', productId)
+      const updateStatusResponse = await fetch(`${API_BASE_URL}/products/status/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'reserved' }),
+      })
 
-      if (updateError) throw updateError
+      if (!updateStatusResponse.ok) {
+        const errorData = await updateStatusResponse.json()
+        throw new Error(errorData.error || 'Failed to update product status')
+      }
 
       toast.success('Product reserved successfully!')
+      loadProducts() // Reload products to reflect status change
     } catch (error: any) {
       console.error('Error reserving product:', error)
-      toast.error('Failed to reserve product')
+      toast.error(error.message || 'Failed to reserve product')
     }
   }
 

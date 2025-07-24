@@ -1,11 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { supabase, SessionMessage, Product } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { Send, Image, ArrowLeft, Users, Package, Circle } from 'lucide-react'
 import { ProductPostModal } from './ProductPostModal'
 import { ChatMessage } from './ChatMessage'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
+
+const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
+
+interface SessionMessage {
+  id: number
+  session_id: number
+  sender_id: string
+  message_type: 'text' | 'product'
+  content: string | null
+  product_id: number | null
+  created_at: string
+}
+
+interface Product {
+  id: number
+  session_id: number
+  seller_id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  status: 'available' | 'reserved' | 'sold'
+  created_at: string
+  updated_at: string
+}
 
 interface LiveSessionChatProps {
   sessionId: number
@@ -25,11 +49,11 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
 
   useEffect(() => {
     loadSessionData()
-    const cleanup = setupRealTimeSubscription()
+    // const cleanup = setupRealTimeSubscription() // Real-time will be implemented later
 
-    return () => {
-      cleanup()
-    }
+    // return () => {
+    //   cleanup()
+    // }
   }, [sessionId])
 
   useEffect(() => {
@@ -41,60 +65,49 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
       setLoading(true)
       
       // Step 1: Load session info
-      const { data: session, error: sessionError } = await supabase
-        .from('live_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single()
+      const sessionResponse = await fetch(`${API_BASE_URL}/live_sessions?id=${sessionId}`)
+      if (!sessionResponse.ok) throw new Error('Failed to fetch session')
+      const sessionData = await sessionResponse.json()
+      const session = sessionData[0] // Assuming it returns an array
       
-      if (sessionError) throw sessionError
-      
-      // Step 2: If session exists, fetch seller's profile separately
-      if (session) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', session.seller_id)
-          .single()
-
-        // Step 3: Combine session data with seller's name
-        setSessionInfo({
-          ...session,
-          seller_name: profileError ? 'Unknown' : profileData?.full_name
-        })
-      } else {
+      if (!session) {
         setSessionInfo(null)
+        return
       }
       
-      // Load messages
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('session_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true })
+      // Step 2: If session exists, fetch seller's profile separately
+      const profileResponse = await fetch(`${API_BASE_URL}/auth/profile/${session.seller_id}`)
+      if (!profileResponse.ok) throw new Error('Failed to fetch profile')
+      const profileData = await profileResponse.json()
+
+      // Step 3: Combine session data with seller's name
+      setSessionInfo({
+        ...session,
+        seller_name: profileData?.full_name || 'Unknown'
+      })
       
-      if (messagesError) throw messagesError
+      // Load messages
+      const messagesResponse = await fetch(`${API_BASE_URL}/messages/${sessionId}`)
+      if (!messagesResponse.ok) throw new Error('Failed to fetch messages')
+      const messagesData: SessionMessage[] = await messagesResponse.json()
       
       // Get sender names and product data
       if (messagesData && messagesData.length > 0) {
         const senderIds = [...new Set(messagesData.map(m => m.sender_id))]
         const productIds = messagesData.filter(m => m.product_id).map(m => m.product_id)
         
+        const profilesPromises = senderIds.map(id => fetch(`${API_BASE_URL}/auth/profile/${id}`).then(res => res.json()))
+        const productsPromises = productIds.length > 0 ? productIds.map(id => fetch(`${API_BASE_URL}/products?id=${id}`).then(res => res.json())) : []
+        
         const [profilesRes, productsRes] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('user_id, full_name')
-            .in('user_id', senderIds),
-          productIds.length > 0 ? supabase
-            .from('products')
-            .select('*')
-            .in('id', productIds) : { data: [] }
+          Promise.all(profilesPromises),
+          Promise.all(productsPromises)
         ])
         
         const messagesWithData = messagesData.map(message => ({
           ...message,
-          sender_name: profilesRes.data?.find(p => p.user_id === message.sender_id)?.full_name || 'Unknown',
-          product: message.product_id ? productsRes.data?.find(p => p.id === message.product_id) : undefined
+          sender_name: profilesRes.find(p => p.user_id === message.sender_id)?.full_name || 'Unknown',
+          product: message.product_id ? productsRes.find((p: Product[]) => p[0].id === message.product_id)?.[0] : undefined
         }))
         
         setMessages(messagesWithData)
@@ -107,86 +120,10 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
     }
   }
 
-  function setupRealTimeSubscription() {
-    const messageChannel = supabase
-      .channel(`session_${sessionId}_messages`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'session_messages',
-          filter: `session_id=eq.${sessionId}`
-        },
-        async (payload) => {
-          const newMessage = payload.new as SessionMessage
-
-          // Ignore messages sent by the current user
-          if (profile && newMessage.sender_id === profile.user_id) {
-            return
-          }
-          
-          // Get sender name
-          const { data: senderProfile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('user_id', newMessage.sender_id)
-            .single()
-          
-          // Get product data if it's a product message
-          let product = undefined
-          if (newMessage.product_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('*')
-              .eq('id', newMessage.product_id)
-              .single()
-            product = productData
-          }
-          
-          const messageWithData = {
-            ...newMessage,
-            sender_name: senderProfile?.full_name || 'Unknown',
-            product
-          }
-          
-          setMessages(prev => [...prev, messageWithData])
-        }
-      )
-      .subscribe()
-
-    // Listen for product status changes to update existing messages
-    const productChannel = supabase
-      .channel(`session_${sessionId}_products`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'products'
-        },
-        async (payload) => {
-          const updatedProduct = payload.new as Product
-          
-          // Update any existing messages that reference this product
-          setMessages(prev => prev.map(message => {
-            if (message.product && message.product.id === updatedProduct.id) {
-              return {
-                ...message,
-                product: updatedProduct
-              }
-            }
-            return message
-          }))
-        }
-      )
-      .subscribe()
-
-    return () => {
-      messageChannel.unsubscribe()
-      productChannel.unsubscribe()
-    }
-  }
+  // function setupRealTimeSubscription() {
+  //   // This will be implemented later with WebSockets
+  //   return () => {}
+  // }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -196,21 +133,29 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
     setSending(true)
     
     try {
-      const { data: newMessages, error } = await supabase
-        .from('session_messages')
-        .insert({
+      const response = await fetch(`${API_BASE_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           session_id: sessionId,
           sender_id: profile.user_id,
           message_type: 'text',
           content: newMessage.trim()
-        })
-        .select()
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to send message')
+      }
 
-      if (newMessages && newMessages.length > 0) {
+      const newMessages = await response.json()
+
+      if (newMessages) {
         const messageWithData = {
-          ...(newMessages[0] as SessionMessage),
+          ...(newMessages as SessionMessage),
           sender_name: profile.full_name || 'You',
           product: undefined
         }
@@ -220,7 +165,7 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
       setNewMessage('')
     } catch (error: any) {
       console.error('Error sending message:', error)
-      toast.error('Failed to send message')
+      toast.error(error.message || 'Failed to send message')
     } finally {
       setSending(false)
     }
@@ -228,20 +173,27 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
 
   async function handleProductPosted(productId: number) {
     try {
-      const { error } = await supabase
-        .from('session_messages')
-        .insert({
+      const response = await fetch(`${API_BASE_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           session_id: sessionId,
           sender_id: profile!.user_id,
           message_type: 'product',
           content: 'Posted a new product',
           product_id: productId
-        })
+        }),
+      })
       
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to announce product')
+      }
     } catch (error: any) {
       console.error('Error posting product message:', error)
-      toast.error('Failed to announce product')
+      toast.error(error.message || 'Failed to announce product')
     }
   }
 
@@ -258,14 +210,11 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
 
     try {
       // Get product details first
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', productId)
-        .single()
+      const productResponse = await fetch(`${API_BASE_URL}/products?id=${productId}`)
+      if (!productResponse.ok) throw new Error('Failed to fetch product')
+      const productData = await productResponse.json()
+      const product = productData[0] // Assuming it returns an array
 
-      if (productError) throw productError
-      
       if (!product) {
         toast.error('Product not found')
         return
@@ -277,46 +226,60 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
       }
 
       // Create reservation
-      const { error: reservationError } = await supabase
-        .from('reservations')
-        .insert({
+      const reservationResponse = await fetch(`${API_BASE_URL}/reservations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           product_id: productId,
           buyer_id: profile.user_id,
           seller_id: product.seller_id,
           status: 'active'
-        })
+        }),
+      })
 
-      if (reservationError) throw reservationError
+      if (!reservationResponse.ok) {
+        const errorData = await reservationResponse.json()
+        throw new Error(errorData.error || 'Failed to create reservation')
+      }
 
       // Update product status
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({ 
-          status: 'reserved',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', productId)
+      const updateStatusResponse = await fetch(`${API_BASE_URL}/products/status/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'reserved' }),
+      })
 
-      if (updateError) throw updateError
+      if (!updateStatusResponse.ok) {
+        const errorData = await updateStatusResponse.json()
+        throw new Error(errorData.error || 'Failed to update product status')
+      }
 
       // Send chat message about the reservation
-      const { error: messageError } = await supabase
-        .from('session_messages')
-        .insert({
+      const messageResponse = await fetch(`${API_BASE_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           session_id: sessionId,
           sender_id: profile.user_id,
           message_type: 'text',
-          content: `Reserved "${product.name}" for $${product.price}`
-        })
+          content: `Reserved "${product.name}" for ${product.price}`
+        }),
+      })
 
-      if (messageError) {
-        console.error('Error sending reservation message:', messageError)
+      if (!messageResponse.ok) {
+        console.error('Error sending reservation message:', await messageResponse.json())
       }
 
       toast.success('Product reserved successfully!')
     } catch (error: any) {
       console.error('Error reserving product:', error)
-      toast.error('Failed to reserve product')
+      toast.error(error.message || 'Failed to reserve product')
     }
   }
 

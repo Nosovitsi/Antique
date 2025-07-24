@@ -1,7 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase, Profile } from '../lib/supabase'
 import toast from 'react-hot-toast'
+
+const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
+
+interface Profile {
+  id: string
+  user_id: string
+  email: string
+  full_name: string | null
+  role: 'seller' | 'buyer'
+  avatar_url: string | null
+  created_at: string
+  updated_at: string
+}
 
 interface AuthContextType {
   user: User | null
@@ -29,32 +41,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          await loadProfile(session.user.id)
-        } else {
-          setProfile(null)
-        }
-        setLoading(false)
-      }
-    )
-
-    return () => {
-      subscription.unsubscribe()
-    }
+    // We will manage session state based on backend responses
+    // No direct Supabase auth listener here anymore
+    setLoading(false)
   }, [])
 
   async function loadProfile(userId: string) {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle()
-
-      if (error) throw error
+      const response = await fetch(`${API_BASE_URL}/auth/profile/${userId}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data: Profile = await response.json()
       setProfile(data)
     } catch (error: any) {
       console.error('Error loading profile:', error)
@@ -62,113 +60,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-    if (error) {
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to sign in')
+      }
+
+      const userData = await response.json()
+      // Assuming the backend returns a user object similar to Supabase's
+      setUser(userData as User)
+      await loadProfile(userData.id) // Load profile after successful login
+      toast.success('Signed in successfully!')
+    } catch (error: any) {
       toast.error(error.message)
       throw error
     }
-    
-    toast.success('Signed in successfully!')
   }
 
   async function signUp(email: string, password: string, fullName: string, role: 'seller' | 'buyer') {
     try {
-      // First try the standard signup
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, full_name: fullName, role }),
       })
 
-      if (!error && data.user) {
-        // Standard signup worked, create profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            user_id: data.user.id,
-            email,
-            full_name: fullName,
-            role
-          })
-
-        if (profileError) {
-          console.error('Error creating profile:', profileError)
-          toast.error('Failed to create profile')
-          throw profileError
-        }
-
-        toast.success('Account created successfully! Please check your email to verify your account.')
-        return
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to sign up')
       }
 
-      // If standard signup failed due to email domain restriction, try admin API
-      if (error && error.message.includes('invalid')) {
-        console.log('Standard signup failed, trying admin API...', error.message)
-        
-        const { data: adminData, error: adminError } = await supabase.functions.invoke('fix-auth-domains', {
-          body: {
-            email,
-            password,
-            fullName,
-            role
-          }
-        })
-
-        if (adminError) {
-          console.error('Admin signup failed:', adminError)
-          toast.error(adminError.message || 'Failed to create account')
-          throw adminError
-        }
-
-        if (adminData?.data?.user) {
-          toast.success('Account created successfully! You can now sign in.')
-          return
-        }
-      }
-
-      // If we get here, both methods failed
-      toast.error(error?.message || 'Failed to create account')
-      throw error || new Error('Failed to create account')
+      const userData = await response.json()
+      setUser(userData as User)
+      await loadProfile(userData.id)
+      toast.success('Account created successfully!')
     } catch (error: any) {
       console.error('Signup error:', error)
-      if (!error.message.includes('Account created')) {
-        toast.error(error.message || 'Failed to create account')
-      }
+      toast.error(error.message || 'Failed to create account')
       throw error
     }
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to sign out')
+      }
+
+      setUser(null)
+      setProfile(null)
+      toast.success('Signed out successfully!')
+    } catch (error: any) {
       toast.error(error.message)
       throw error
     }
-    
-    toast.success('Signed out successfully!')
   }
 
   async function updateProfile(updates: Partial<Profile>) {
     if (!user) throw new Error('No user logged in')
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('user_id', user.id)
-      .select()
-      .maybeSingle()
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      })
 
-    if (error) {
-      toast.error('Failed to update profile')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update profile')
+      }
+
+      const updatedProfile = await response.json()
+      setProfile(updatedProfile)
+      toast.success('Profile updated successfully!')
+    } catch (error: any) {
+      toast.error(error.message)
       throw error
     }
-
-    setProfile(data)
-    toast.success('Profile updated successfully!')
   }
 
   const value = {

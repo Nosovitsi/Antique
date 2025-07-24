@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { supabase } from '../../lib/supabase'
+const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
 import { useAuth } from '../../contexts/AuthContext'
 import { useImageUpload } from '../../hooks/useImageUpload'
 import { X, Package, Upload, DollarSign, FileText, Image as ImageIcon } from 'lucide-react'
@@ -78,21 +78,30 @@ export function ProductPostModal({ sessionId, isOpen, onClose, onProductPosted }
       }
       
       // Create product
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          session_id: sessionId,
-          seller_id: profile.user_id,
-          name: formData.name.trim(),
-          description: formData.description.trim() || null,
-          price: price,
-          image_url: imageUrl,
-          status: 'available'
-        })
-        .select()
-        .single()
+      const productData = {
+        session_id: sessionId,
+        seller_id: profile.user_id,
+        name: formData.name.trim(),
+        description: formData.description.trim() || null,
+        price: price,
+        image_url: imageUrl,
+        status: 'available'
+      }
 
-      if (error) throw error
+      const response = await fetch(`${API_BASE_URL}/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(productData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to post product')
+      }
+
+      const data = await response.json()
 
       toast.success('Product posted successfully!')
       onProductPosted(data.id)

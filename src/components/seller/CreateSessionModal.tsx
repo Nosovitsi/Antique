@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { X, Radio } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
+
+const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
 
 interface CreateSessionModalProps {
   isOpen: boolean
@@ -27,24 +28,33 @@ export function CreateSessionModal({ isOpen, onClose, onSessionCreated }: Create
     setLoading(true)
     
     try {
-      const { data, error } = await supabase
-        .from('live_sessions')
-        .insert({
-          seller_id: profile.user_id,
-          title: title.trim() || `${profile.full_name}'s Live Session`,
-          status: 'active'
-        })
-        .select()
-        .single()
+      const sessionData = {
+        seller_id: profile.user_id,
+        title: title.trim() || `${profile.full_name}'s Live Session`,
+        status: 'active'
+      }
 
-      if (error) throw error
+      const response = await fetch(`${API_BASE_URL}/live_sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sessionData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create session')
+      }
+
+      const data = await response.json()
 
       toast.success('Live session created successfully!')
       onSessionCreated(data.id)
       onClose()
     } catch (error: any) {
       console.error('Error creating session:', error)
-      toast.error('Failed to create session')
+      toast.error(error.message || 'Failed to create session')
     } finally {
       setLoading(false)
     }

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from .supabase_client import supabase
+from datetime import datetime
 
 bp = Blueprint('main', __name__)
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -91,7 +92,8 @@ def get_live_sessions():
 @live_sessions_bp.route('/end/<session_id>', methods=['POST'])
 def end_live_session(session_id):
     try:
-        response = supabase.rpc('end_live_session', {'session_id': session_id}).execute()
+        # Update the status of the live session to 'ended' and set ended_at timestamp
+        response = supabase.from_('live_sessions').update({'status': 'ended', 'ended_at': datetime.now().isoformat()}).eq('id', session_id).execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

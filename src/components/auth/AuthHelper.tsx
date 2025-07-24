@@ -61,10 +61,13 @@ export function AuthHelper() {
             >
               {testAccounts.map((account, index) => (
                 <div key={index} className="bg-white rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">{account.type}</h4>
+                  <button
+                    onClick={() => onFillCredentials(account.email, account.password)}
+                    className="flex items-center justify-between w-full mb-2 group"
+                  >
+                    <h4 className="font-medium text-gray-900 group-hover:text-purple-600 transition-colors">{account.type}</h4>
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                  </div>
+                  </button>
                   <p className="text-xs text-gray-600 mb-2">{account.description}</p>
                   
                   <div className="space-y-2">

@@ -6,9 +6,19 @@ import { ShoppingBag, Zap, Users, Star } from 'lucide-react'
 
 export function AuthWrapper() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [prefillEmail, setPrefillEmail] = useState('')
+  const [prefillPassword, setPrefillPassword] = useState('')
 
   const toggleMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login')
+    setPrefillEmail('') // Clear prefill when toggling mode
+    setPrefillPassword('')
+  }
+
+  const handleFillCredentials = (email: string, password: string) => {
+    setPrefillEmail(email)
+    setPrefillPassword(password)
+    setMode('login') // Switch to login form if not already
   }
 
   return (
@@ -66,9 +76,9 @@ export function AuthWrapper() {
         {/* Right side - Auth Forms */}
         <div className="lg:w-1/2 flex items-center justify-center p-8">
           <div className="w-full max-w-md">
-            <AuthHelper />
+            <AuthHelper onFillCredentials={handleFillCredentials} />
             {mode === 'login' ? (
-              <LoginForm onToggleMode={toggleMode} />
+              <LoginForm onToggleMode={toggleMode} prefillEmail={prefillEmail} prefillPassword={prefillPassword} />
             ) : (
               <SignUpForm onToggleMode={toggleMode} />
             )}

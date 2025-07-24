@@ -4,12 +4,14 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 interface LoginFormProps {
   onToggleMode: () => void
+  prefillEmail?: string
+  prefillPassword?: string
 }
 
-export function LoginForm({ onToggleMode }: LoginFormProps) {
+export function LoginForm({ onToggleMode, prefillEmail, prefillPassword }: LoginFormProps) {
   const { signIn } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(prefillEmail || '')
+  const [password, setPassword] = useState(prefillPassword || '')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 

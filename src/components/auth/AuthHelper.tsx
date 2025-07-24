@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle, Copy, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
-export function AuthHelper() {
+export function AuthHelper({ onFillCredentials }: AuthHelperProps) {
   const [showCredentials, setShowCredentials] = useState(false)
   
   const testAccounts = [

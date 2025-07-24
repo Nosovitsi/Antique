@@ -84,7 +84,7 @@ export function SellerDashboard({ onStartSession, onJoinSession }: SellerDashboa
         throw new Error(errorData.error || 'Failed to end session')
       }
       
-      setActiveSession(null)
+      setActiveSession(null) // Immediately clear active session state
       toast.success('Session ended successfully!')
       await loadDashboardData()
     } catch (error: any) {

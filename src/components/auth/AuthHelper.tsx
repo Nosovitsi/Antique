@@ -15,8 +15,8 @@ export function AuthHelper({ onFillCredentials }: AuthHelperProps) {
     },
     {
       type: 'Seller Account', 
-      email: 'seller@demo.org',
-      password: 'demo123',
+      email: 'malikov917+02@gmail.com',
+      password: '123456',
       description: 'For testing live sessions and product posting'
     }
   ]

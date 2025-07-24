@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from .supabase_client import supabase
 from datetime import datetime
+import traceback
 
 bp = Blueprint('main', __name__)
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -13,6 +14,8 @@ reservations_bp = Blueprint('reservations', __name__, url_prefix='/reservations'
 @bp.route('/')
 def index():
     return "Hello, World! This is the Antique Feed Backend."
+
+
 
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
@@ -55,6 +58,8 @@ def get_profile(user_id):
         else:
             return jsonify({'message': 'Profile not found'}), 404
     except Exception as e:
+        print(f"Error in get_profile: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @auth_bp.route('/profile/<user_id>', methods=['PUT'])
@@ -72,13 +77,17 @@ def fix_auth_domains():
     # Implement the logic here to fix auth domains if needed.
     return jsonify({'message': 'fix-auth-domains endpoint placeholder'}), 200
 
-@live_sessions_bp.route('/', methods=['POST'])
+@live_sessions_bp.route('', methods=['POST'])
 def create_live_session():
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body cannot be empty for POST requests'}), 400
+
     try:
         response = supabase.from_('live_sessions').insert(data).execute()
         return jsonify(response.data[0]), 201
     except Exception as e:
+        print(f"Error creating live session: {e}") # Log the error
         return jsonify({'error': str(e)}), 400
 
 @live_sessions_bp.route('/', methods=['GET'])
@@ -168,15 +177,19 @@ def get_messages(session_id):
         response = supabase.from_('session_messages').select('*').eq('session_id', session_id).execute()
         return jsonify(response.data), 200
     except Exception as e:
+        print(f"Error in get_messages: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
-@messages_bp.route('/', methods=['POST'])
+@messages_bp.route('', methods=['POST'])
 def send_message():
     data = request.get_json()
     try:
         response = supabase.from_('session_messages').insert(data).execute()
         return jsonify(response.data[0]), 201
     except Exception as e:
+        print(f"Error in send_message: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @image_upload_bp.route('/', methods=['POST'])

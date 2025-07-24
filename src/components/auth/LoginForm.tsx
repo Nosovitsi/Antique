@@ -10,8 +10,17 @@ interface LoginFormProps {
 
 export function LoginForm({ onToggleMode, prefillEmail, prefillPassword }: LoginFormProps) {
   const { signIn } = useAuth()
-  const [email, setEmail] = useState(prefillEmail || '')
-  const [password, setPassword] = useState(prefillPassword || '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+
+  useEffect(() => {
+    if (prefillEmail) {
+      setEmail(prefillEmail)
+    }
+    if (prefillPassword) {
+      setPassword(prefillPassword)
+    }
+  }, [prefillEmail, prefillPassword])
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 

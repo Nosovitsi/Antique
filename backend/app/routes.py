@@ -83,8 +83,33 @@ def create_live_session():
 
 @live_sessions_bp.route('/', methods=['GET'])
 def get_live_sessions():
+    session_id = request.args.get('id')
+    seller_id = request.args.get('seller_id')
+    status = request.args.get('status')
+    limit = request.args.get('limit', type=int)
+    order_by = request.args.get('order_by')
+    order_direction = request.args.get('order_direction')
+
     try:
-        response = supabase.from_('live_sessions').select('*').execute()
+        query = supabase.from_('live_sessions').select('*')
+
+        if session_id:
+            query = query.eq('id', session_id)
+        if seller_id:
+            query = query.eq('seller_id', seller_id)
+        if status:
+            query = query.eq('status', status)
+        
+        if order_by:
+            ascending = True
+            if order_direction == 'desc':
+                ascending = False
+            query = query.order(order_by, desc=not ascending)
+
+        if limit:
+            query = query.limit(limit)
+
+        response = query.execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

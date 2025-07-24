@@ -41,8 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // We will manage session state based on backend responses
-    // No direct Supabase auth listener here anymore
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser)
+      setUser(parsedUser)
+      loadProfile(parsedUser.id)
+    }
     setLoading(false)
   }, [])
 
@@ -75,7 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const userData = await response.json()
-      // Assuming the backend returns a user object similar to Supabase's
+      // Store user data in localStorage
+      localStorage.setItem('user', JSON.stringify(userData))
       setUser(userData as User)
       await loadProfile(userData.id) // Load profile after successful login
       toast.success('Signed in successfully!')
@@ -101,6 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const userData = await response.json()
+      // Store user data in localStorage
+      localStorage.setItem('user', JSON.stringify(userData))
       setUser(userData as User)
       await loadProfile(userData.id)
       toast.success('Account created successfully!')
@@ -122,6 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(errorData.error || 'Failed to sign out')
       }
 
+      // Clear user data from localStorage
+      localStorage.removeItem('user')
       setUser(null)
       setProfile(null)
       toast.success('Signed out successfully!')

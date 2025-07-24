@@ -28,43 +28,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Load user on mount
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser()
-        if (error) throw error
-        
-        setUser(user)
-        
-        if (user) {
-          await loadProfile(user.id)
-        }
-      } catch (error: any) {
-        console.error('Error loading user:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    loadUser()
-
-    // Set up auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user || null)
-        
+      async (_event, session) => {
+        setUser(session?.user ?? null)
         if (session?.user) {
           await loadProfile(session.user.id)
         } else {
           setProfile(null)
         }
-        
         setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function loadProfile(userId: string) {

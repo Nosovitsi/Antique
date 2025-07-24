@@ -16,13 +16,10 @@ function AppContent() {
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  // Reset to sessions view when user changes
   useEffect(() => {
-    if (!loading) {
-      setCurrentView('sessions')
-      setCurrentSessionId(null)
-    }
-  }, [user, loading])
+    setCurrentView('sessions')
+    setCurrentSessionId(null)
+  }, [user])
 
   const handleJoinSession = (sessionId: number) => {
     setCurrentSessionId(sessionId)

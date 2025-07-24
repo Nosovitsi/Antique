@@ -25,7 +25,11 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
 
   useEffect(() => {
     loadSessionData()
-    setupRealTimeSubscription()
+    const cleanup = setupRealTimeSubscription()
+
+    return () => {
+      cleanup()
+    }
   }, [sessionId])
 
   useEffect(() => {
@@ -36,15 +40,31 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
     try {
       setLoading(true)
       
-      // Load session info
+      // Step 1: Load session info
       const { data: session, error: sessionError } = await supabase
         .from('live_sessions')
-        .select('*, profiles!live_sessions_seller_id_fkey(full_name)')
+        .select('*')
         .eq('id', sessionId)
         .single()
       
       if (sessionError) throw sessionError
-      setSessionInfo(session)
+      
+      // Step 2: If session exists, fetch seller's profile separately
+      if (session) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', session.seller_id)
+          .single()
+
+        // Step 3: Combine session data with seller's name
+        setSessionInfo({
+          ...session,
+          seller_name: profileError ? 'Unknown' : profileData?.full_name
+        })
+      } else {
+        setSessionInfo(null)
+      }
       
       // Load messages
       const { data: messagesData, error: messagesError } = await supabase
@@ -100,9 +120,14 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
         },
         async (payload) => {
           const newMessage = payload.new as SessionMessage
+
+          // Ignore messages sent by the current user
+          if (profile && newMessage.sender_id === profile.user_id) {
+            return
+          }
           
           // Get sender name
-          const { data: profile } = await supabase
+          const { data: senderProfile } = await supabase
             .from('profiles')
             .select('full_name')
             .eq('user_id', newMessage.sender_id)
@@ -121,7 +146,7 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
           
           const messageWithData = {
             ...newMessage,
-            sender_name: profile?.full_name || 'Unknown',
+            sender_name: senderProfile?.full_name || 'Unknown',
             product
           }
           
@@ -171,7 +196,7 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
     setSending(true)
     
     try {
-      const { error } = await supabase
+      const { data: newMessages, error } = await supabase
         .from('session_messages')
         .insert({
           session_id: sessionId,
@@ -179,8 +204,18 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
           message_type: 'text',
           content: newMessage.trim()
         })
-      
+        .select()
+
       if (error) throw error
+
+      if (newMessages && newMessages.length > 0) {
+        const messageWithData = {
+          ...(newMessages[0] as SessionMessage),
+          sender_name: profile.full_name || 'You',
+          product: undefined
+        }
+        setMessages(prev => [...prev, messageWithData])
+      }
       
       setNewMessage('')
     } catch (error: any) {
@@ -321,7 +356,7 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
                   {sessionInfo?.title || 'Live Session'}
                 </h1>
                 <p className="text-sm text-gray-600">
-                  by {sessionInfo?.profiles?.full_name}
+                  by {sessionInfo?.seller_name || '...'}
                 </p>
               </div>
             </div>

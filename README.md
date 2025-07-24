@@ -1,50 +1,74 @@
-# React + TypeScript + Vite
+# Antique Feed
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Antique Feed is a modern web application for live-streamed antique sales. Sellers can host live video sessions, showcase products, and interact with buyers in real-time. Buyers can discover new items, participate in live chats, and get a closer look at unique antiques from the comfort of their homes.
 
-Currently, two official plugins are available:
+## Stack Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Framework**: [React](https://react.dev/) with [Vite](https://vitejs.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Backend & Database**: [Supabase](https://supabase.com/) (PostgreSQL, Auth, Storage)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), and shadcn/ui
+- **Routing**: [React Router](https://reactrouter.com/)
+- **Forms**: [React Hook Form](https://react-hook-form.com/) & [Zod](https://zod.dev/)
 
-## Expanding the ESLint configuration
+For a more detailed explanation of the architecture, please see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+## Getting Started
 
-- Configure the top-level `parserOptions` property like this:
+### Prerequisites
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+- [Node.js](https://nodejs.org/) (v18 or later)
+- [pnpm](https://pnpm.io/)
+- A [Supabase](https://supabase.com/) account and project.
+
+### Installation & Setup
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/your-username/antique-feed.git
+    cd antique-feed
+    ```
+
+2.  **Install dependencies:**
+
+    ```bash
+    pnpm install
+    ```
+
+3.  **Set up environment variables:**
+
+    Create a `.env` file in the root of the project and add your Supabase project URL and anon key:
+
+    ```
+    VITE_SUPABASE_URL=your-supabase-project-url
+    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+    ```
+
+    You can find these in your Supabase project settings.
+
+### Running the Development Server
+
+To start the local development server, run the following command:
+
+```bash
+pnpm run dev
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+This will start the application on `http://localhost:5173`.
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+## Deployment
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+The application can be deployed to any static hosting provider like Vercel, Netlify, or AWS S3.
+
+1.  **Build the application:**
+
+    ```bash
+    pnpm run build
+    ```
+
+    This command creates a `dist/` directory with the production-ready assets.
+
+2.  **Deploy:**
+
+    Deploy the contents of the `dist/` directory to your hosting provider of choice.

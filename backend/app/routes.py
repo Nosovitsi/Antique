@@ -107,8 +107,12 @@ def create_product():
 
 @products_bp.route('/', methods=['GET'])
 def get_products():
+    product_id = request.args.get('id')
     try:
-        response = supabase.from_('products').select('*').execute()
+        query = supabase.from_('products').select('*')
+        if product_id:
+            query = query.eq('id', product_id)
+        response = query.execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

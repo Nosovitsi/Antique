@@ -33,5 +33,8 @@ Locate the `supabase` directory and do:
     - Copy the content of the file `/supabase/edge-functions/product-image-upload/index.ts` and paste it in the editor.
     - Name the function `product-image-upload`.
     - Click "Deploy".
+3. After step #2, you should have a function called `create-bucket-product-images-temp` in the Supabase project.
+    - It's important to invoke this function to create the bucket for product images.
+    - You can do this by requesting by "Invoke function" in the Supabase dashboard. (pick any approach you like, e.g. Postman, cURL, etc.)
 
 The API will be available at `http://127.0.0.1:5174`.

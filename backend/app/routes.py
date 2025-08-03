@@ -25,7 +25,18 @@ def signup():
 
     try:
         response = supabase.auth.sign_up({'email': email, 'password': password})
-        return jsonify(response.user.dict()), 200
+        user_id = response.user.id
+        user_email = response.user.email
+
+        # Create a profile entry for the new user
+        profile_data = {'id': user_id, 'user_id': user_id, 'email': user_email}
+        profile_response = supabase.from_('profiles').insert([profile_data]).execute()
+
+        if profile_response.data:
+            return jsonify(response.user.dict()), 200
+        else:
+            # If profile creation fails, you might want to handle this, e.g., delete the auth user
+            return jsonify({'error': 'User signed up, but profile creation failed'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -70,12 +81,6 @@ def update_profile(user_id):
         return jsonify(response.data[0]), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
-@auth_bp.route('/fix-auth-domains', methods=['POST'])
-def fix_auth_domains():
-    # This endpoint will replace the supabase.functions.invoke('fix-auth-domains')
-    # Implement the logic here to fix auth domains if needed.
-    return jsonify({'message': 'fix-auth-domains endpoint placeholder'}), 200
 
 @live_sessions_bp.route('', methods=['POST'])
 def create_live_session():
@@ -192,7 +197,8 @@ def send_message():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
-@image_upload_bp.route('/', methods=['POST'])
+# ⁉️ THIS ENDPOINT IS NOT USED! HAPPENS THROUGH THE SUPABASE FUNCTION 
+@image_upload_bp.route('', methods=['POST'])
 def upload_image():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400

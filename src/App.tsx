@@ -10,11 +10,21 @@ import { SellerDashboard } from './components/seller/SellerDashboard'
 import { CreateSessionModal } from './components/seller/CreateSessionModal'
 import './index.css'
 
+interface LiveSession {
+  id: number
+  seller_id: string
+  title: string | null
+  status: 'active' | 'ended'
+  created_at: string
+  ended_at: string | null
+}
+
 function AppContent() {
   const { user, profile, loading } = useAuth()
   const [currentView, setCurrentView] = useState('sessions')
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [activeSession, setActiveSession] = useState<LiveSession | null>(null)
 
   useEffect(() => {
     setCurrentView('sessions')
@@ -35,9 +45,10 @@ function AppContent() {
     setShowCreateModal(true)
   }
 
-  const handleSessionCreated = (sessionId: number) => {
+  const handleSessionCreated = (session: LiveSession) => {
     setShowCreateModal(false)
-    handleJoinSession(sessionId)
+    setActiveSession(session)
+    handleJoinSession(session.id)
   }
 
   if (loading) {
@@ -111,6 +122,8 @@ function AppContent() {
           <SellerDashboard 
             onStartSession={handleCreateSession}
             onJoinSession={handleJoinSession}
+            activeSession={activeSession}
+            setActiveSession={setActiveSession}
           />
         )
       case 'profile':

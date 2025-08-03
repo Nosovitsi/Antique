@@ -6,10 +6,19 @@ import toast from 'react-hot-toast'
 
 const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
 
+interface LiveSession {
+  id: number
+  seller_id: string
+  title: string | null
+  status: 'active' | 'ended'
+  created_at: string
+  ended_at: string | null
+}
+
 interface CreateSessionModalProps {
   isOpen: boolean
   onClose: () => void
-  onSessionCreated: (sessionId: number) => void
+  onSessionCreated: (session: LiveSession) => void
 }
 
 export function CreateSessionModal({ isOpen, onClose, onSessionCreated }: CreateSessionModalProps) {
@@ -50,7 +59,7 @@ export function CreateSessionModal({ isOpen, onClose, onSessionCreated }: Create
       const data = await response.json()
 
       toast.success('Live session created successfully!')
-      onSessionCreated(data.id)
+      onSessionCreated(data)
       onClose()
     } catch (error: any) {
       console.error('Error creating session:', error)

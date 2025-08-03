@@ -132,7 +132,7 @@ def end_live_session(session_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@products_bp.route('/', methods=['POST'])
+@products_bp.route('', methods=['POST'])
 def create_product():
     data = request.get_json()
     try:
@@ -166,7 +166,7 @@ def update_product_status(product_id):
     data = request.get_json()
     status = data.get('status')
     try:
-        response = supabase.rpc('update_product_status', {'product_id': product_id, 'status': status}).execute()
+        response = supabase.from_('products').update({'status': status}).eq('id', product_id).execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -209,7 +209,7 @@ def upload_image():
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
-@reservations_bp.route('/', methods=['POST'])
+@reservations_bp.route('', methods=['POST'])
 def create_reservation():
     data = request.get_json()
     try:

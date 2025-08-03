@@ -18,11 +18,12 @@ interface LiveSession {
 interface SellerDashboardProps {
   onStartSession: () => void
   onJoinSession: (sessionId: number) => void
+  activeSession: LiveSession | null
+  setActiveSession: React.Dispatch<React.SetStateAction<LiveSession | null>>
 }
 
-export function SellerDashboard({ onStartSession, onJoinSession }: SellerDashboardProps) {
+export function SellerDashboard({ onStartSession, onJoinSession, activeSession, setActiveSession }: SellerDashboardProps) {
   const { profile } = useAuth()
-  const [activeSession, setActiveSession] = useState<LiveSession | null>(null)
   const [recentSessions, setRecentSessions] = useState<LiveSession[]>([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
@@ -33,7 +34,7 @@ export function SellerDashboard({ onStartSession, onJoinSession }: SellerDashboa
 
   useEffect(() => {
     loadDashboardData()
-  }, [profile]) // Add profile to dependency array
+  }, [profile])
 
   async function loadDashboardData() {
     if (!profile) return
@@ -59,10 +60,6 @@ export function SellerDashboard({ onStartSession, onJoinSession }: SellerDashboa
         setRecentSessions(sessions)
       }
       
-      // Load stats (These will still use Supabase directly for now, or require new backend endpoints)
-      // For now, we'll mock these or keep them as is if they are not critical for the immediate migration
-      // You would create new backend endpoints for these if needed.
-      
     } catch (error: any) {
       console.error('Error loading dashboard data:', error)
       toast.error('Failed to load dashboard data')
@@ -84,7 +81,7 @@ export function SellerDashboard({ onStartSession, onJoinSession }: SellerDashboa
         throw new Error(errorData.error || 'Failed to end session')
       }
       
-      setActiveSession(null) // Immediately clear active session state
+      setActiveSession(null)
       toast.success('Session ended successfully!')
       await loadDashboardData()
     } catch (error: any) {

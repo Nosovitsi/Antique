@@ -1,3 +1,4 @@
+import { supabase } from '../../lib/supabase'
 import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Send, Image, ArrowLeft, Users, Package, Circle } from 'lucide-react'
@@ -49,11 +50,11 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
 
   useEffect(() => {
     loadSessionData()
-    // const cleanup = setupRealTimeSubscription() // Real-time will be implemented later
+    const cleanup = setupRealTimeSubscription()
 
-    // return () => {
-    //   cleanup()
-    // }
+    return () => {
+      cleanup()
+    }
   }, [sessionId])
 
   useEffect(() => {
@@ -120,10 +121,32 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
     }
   }
 
-  // function setupRealTimeSubscription() {
-  //   // This will be implemented later with WebSockets
-  //   return () => {}
-  // }
+  function setupRealTimeSubscription() {
+    const channel = supabase.channel(`session-chat-${sessionId}`)
+
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'session_messages', filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          console.log('New message received:', payload)
+          loadSessionData() // Reload all data for simplicity
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log('Product updated:', payload)
+          loadSessionData() // Reload all data for simplicity
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -149,17 +172,6 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to send message')
-      }
-
-      const newMessages = await response.json()
-
-      if (newMessages) {
-        const messageWithData = {
-          ...(newMessages as SessionMessage),
-          sender_name: profile.full_name || 'You',
-          product: undefined
-        }
-        setMessages(prev => [...prev, messageWithData])
       }
       
       setNewMessage('')
@@ -191,6 +203,9 @@ export function LiveSessionChat({ sessionId, onBack }: LiveSessionChatProps) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to announce product')
       }
+
+      // Reload session data to get the new product message
+      await loadSessionData()
     } catch (error: any) {
       console.error('Error posting product message:', error)
       toast.error(error.message || 'Failed to announce product')

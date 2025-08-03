@@ -29,8 +29,9 @@ Locate the `supabase` directory and do:
     - Dashboard / SQL Editor / Run SQL
     - Copy the content of the file `/supabase/tables/live_sessions.sql` and so on and paste one after another in the SQL editor.
 2. All functions from /supabase/edge-functions should be created in the Supabase project.
-    - Dashboard / Edge Functions / Create a new function
-    - Copy the content of the file `/supabase/edge-functions/product-image-upload/index.py` and paste it in the editor.
+    - Dashboard / Edge Functions / Deploy a new function / Deploy via Editor
+    - Copy the content of the file `/supabase/edge-functions/product-image-upload/index.ts` and paste it in the editor.
     - Name the function `product-image-upload`.
+    - Click "Deploy".
 
 The API will be available at `http://127.0.0.1:5174`.

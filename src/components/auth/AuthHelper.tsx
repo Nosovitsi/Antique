@@ -3,6 +3,11 @@ import { AlertCircle, CheckCircle, Copy, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 
+// Define the props interface for the component
+export interface AuthHelperProps {
+  onFillCredentials: (email: string, password: string) => void;
+}
+
 export function AuthHelper({ onFillCredentials }: AuthHelperProps) {
   const [showCredentials, setShowCredentials] = useState(false)
   
@@ -11,7 +16,7 @@ export function AuthHelper({ onFillCredentials }: AuthHelperProps) {
       type: 'Buyer Account',
       email: 'dgtupbqp@minimax.com',
       password: '3EfUSVm9l2',
-      description: 'For testing product browsing and purchasing'
+      description: 'For testing product Browse and purchasing'
     },
     {
       type: 'Seller Account', 

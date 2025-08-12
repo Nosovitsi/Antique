@@ -1,70 +1,99 @@
-import React, { useState, useEffect } from 'react'
-const API_BASE_URL = 'http://127.0.0.1:5174' // Your Python backend URL
-import { useAuth } from '../../contexts/AuthContext'
-import { SessionListItem } from './SessionListItem'
-import { Search, Plus, MessageCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
-import toast from 'react-hot-toast'
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { SessionListItem } from './SessionListItem';
+import { Search, Plus, MessageCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
+
+// --- ИНТЕРФЕЙСЫ ВЫНЕСЕНЫ В НАЧАЛО ФАЙЛА ДЛЯ ДОСТУПНОСТИ ---
+
+// Тип для LiveSession
+interface LiveSession {
+  id: number;
+  title: string;
+  status: 'active' | 'ended';
+  seller_id: string;
+  created_at: string;
+  ended_at: string | null;
+}
+
+// Тип для SessionMessage
+interface SessionMessage {
+  id: number;
+  session_id: number;
+  sender_id: number;
+  content: string;
+  message_type: 'text' | 'image' | 'product';
+  created_at: string;
+  product_id?: number;
+}
+
+// Тип для Product
+interface Product {
+  id: number;
+  name: string;
+  // Добавьте другие свойства, если они есть
+}
+
+const API_BASE_URL = 'http://127.0.0.1:5174';
 
 interface SessionsListProps {
-  onJoinSession: (sessionId: number) => void
-  onCreateSession?: () => void
+  onJoinSession: (sessionId: number) => void;
+  onCreateSession?: () => void;
 }
 
+// Тип SessionWithDetails теперь корректно расширяет LiveSession
 interface SessionWithDetails extends LiveSession {
-  seller_name: string
-  participant_count: number
+  seller_name: string;
+  participant_count: number;
   last_message?: {
-    content: string | null
-    message_type: string
-    created_at: string
-    product_name?: string
-  }
+    content: string | null;
+    message_type: string;
+    created_at: string;
+    product_name?: string;
+  };
 }
 
+// --- КОМПОНЕНТ НАЧИНАЕТСЯ ПОСЛЕ ОБЪЯВЛЕНИЯ ИНТЕРФЕЙСОВ ---
 export function SessionsList({ onJoinSession, onCreateSession }: SessionsListProps) {
-  const { profile } = useAuth()
-  const [sessions, setSessions] = useState<SessionWithDetails[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all')
+  const { profile } = useAuth();
+  const [sessions, setSessions] = useState<SessionWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all');
 
   useEffect(() => {
-    loadSessions()
-    // Real-time subscriptions will be handled later with WebSockets
-  }, [])
+    loadSessions();
+  }, []);
 
   async function loadSessions() {
     try {
-      setLoading(true)
+      setLoading(true);
       
-      // Get all sessions ordered by activity (active first, then by last activity)
-      const sessionsResponse = await fetch(`${API_BASE_URL}/live_sessions`)
-      if (!sessionsResponse.ok) throw new Error('Failed to fetch sessions')
-      const sessionsData: LiveSession[] = await sessionsResponse.json()
+      const sessionsResponse = await fetch(`${API_BASE_URL}/live_sessions`);
+      if (!sessionsResponse.ok) throw new Error('Failed to fetch sessions');
+      const sessionsData: LiveSession[] = await sessionsResponse.json();
 
       if (sessionsData && sessionsData.length > 0) {
-        // Get seller names
-        const sellerIds = [...new Set(sessionsData.map(s => s.seller_id))]
-        const profilesPromises = sellerIds.map(id => fetch(`${API_BASE_URL}/auth/profile/${id}`).then(res => res.json()))
-        const profiles = await Promise.all(profilesPromises)
+        const sellerIds = [...new Set(sessionsData.map(s => s.seller_id))];
+        const profilesPromises = sellerIds.map(id => fetch(`${API_BASE_URL}/auth/profile/${id}`).then(res => res.json()));
+        const profiles = await Promise.all(profilesPromises);
 
-        // Get last message for each session and participant counts
         const sessionsWithDetailsPromises = sessionsData.map(async (session) => {
-          const messagesResponse = await fetch(`${API_BASE_URL}/messages/${session.id}`)
-          const messages: SessionMessage[] = messagesResponse.ok ? await messagesResponse.json() : []
+          const messagesResponse = await fetch(`${API_BASE_URL}/messages/${session.id}`);
+          const messages: SessionMessage[] = messagesResponse.ok ? await messagesResponse.json() : [];
 
-          const lastMsg = messages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+          const lastMsg = messages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-          let product: Product | undefined
+          let product: Product | undefined;
           if (lastMsg?.product_id) {
-            const productResponse = await fetch(`${API_BASE_URL}/products?id=${lastMsg.product_id}`)
-            const productData = productResponse.ok ? await productResponse.json() : []
-            product = productData[0]
+            const productResponse = await fetch(`${API_BASE_URL}/products?id=${lastMsg.product_id}`);
+            const productData = productResponse.ok ? await productResponse.json() : [];
+            product = productData[0];
           }
 
-          const uniqueSenders = new Set(messages.map(m => m.sender_id))
-          const participant_count = uniqueSenders.size
+          const uniqueSenders = new Set(messages.map(m => m.sender_id));
+          const participant_count = uniqueSenders.size;
           
           return {
             ...session,
@@ -76,55 +105,51 @@ export function SessionsList({ onJoinSession, onCreateSession }: SessionsListPro
               created_at: lastMsg.created_at,
               product_name: product?.name
             } : undefined
-          }
-        })
+          };
+        });
 
-        const sessionsWithDetails = await Promise.all(sessionsWithDetailsPromises)
+        const sessionsWithDetails = await Promise.all(sessionsWithDetailsPromises);
 
-        // Sort: active sessions first, then by last activity
         const sortedSessions = sessionsWithDetails.sort((a, b) => {
-          // Active sessions first
-          if (a.status === 'active' && b.status !== 'active') return -1
-          if (b.status === 'active' && a.status !== 'active') return 1
+          if (a.status === 'active' && b.status !== 'active') return -1;
+          if (b.status === 'active' && a.status !== 'active') return 1;
           
-          // Then by last message time, or creation time if no messages
-          const aTime = a.last_message?.created_at || a.created_at
-          const bTime = b.last_message?.created_at || b.created_at
-          return new Date(bTime).getTime() - new Date(aTime).getTime()
-        })
+          const aTime = a.last_message?.created_at || a.created_at;
+          const bTime = b.last_message?.created_at || b.created_at;
+          return new Date(bTime).getTime() - new Date(aTime).getTime();
+        });
 
-        setSessions(sortedSessions)
+        setSessions(sortedSessions);
       } else {
-        setSessions([])
+        setSessions([]);
       }
     } catch (error: any) {
-      console.error('Error loading sessions:', error)
-      toast.error('Failed to load sessions')
+      console.error('Error loading sessions:', error);
+      toast.error('Failed to load sessions');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const filteredSessions = sessions.filter(session => {
-    const matchesSearch = session.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         session.seller_name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = (session.title?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
+                         (session.seller_name?.toLowerCase() ?? '').includes(searchTerm.toLowerCase());
     
-    const matchesFilter = filter === 'all' || session.status === filter
+    const matchesFilter = filter === 'all' || session.status === filter;
     
-    return matchesSearch && matchesFilter
-  })
+    return matchesSearch && matchesFilter;
+  });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
@@ -141,7 +166,6 @@ export function SessionsList({ onJoinSession, onCreateSession }: SessionsListPro
           )}
         </div>
         
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
@@ -153,12 +177,11 @@ export function SessionsList({ onJoinSession, onCreateSession }: SessionsListPro
           />
         </div>
         
-        {/* Filters */}
         <div className="flex space-x-2">
           {['all', 'active', 'ended'].map((filterOption) => (
             <button
               key={filterOption}
-              onClick={() => setFilter(filterOption as any)}
+              onClick={() => setFilter(filterOption as 'all' | 'active' | 'ended')}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 filter === filterOption
                   ? 'bg-purple-100 text-purple-700 border-2 border-purple-200'
@@ -176,7 +199,6 @@ export function SessionsList({ onJoinSession, onCreateSession }: SessionsListPro
         </div>
       </div>
 
-      {/* Sessions List */}
       <div className="flex-1 overflow-y-auto">
         {filteredSessions.length > 0 ? (
           <div className="divide-y divide-gray-100">
@@ -217,5 +239,5 @@ export function SessionsList({ onJoinSession, onCreateSession }: SessionsListPro
         )}
       </div>
     </div>
-  )
+  );
 }

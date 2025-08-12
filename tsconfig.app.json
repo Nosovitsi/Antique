@@ -19,7 +19,7 @@
     },
     "moduleResolution": "node",
     "allowImportingTsExtensions": true,
-    "allowSyntheticDefaultImports": true, // Add this line
+    "allowSyntheticDefaultImports": true, // Эта строка добавлена
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
